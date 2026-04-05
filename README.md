@@ -7,6 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-green.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.2.0-blue.svg)]()
 [![Phase](https://img.shields.io/badge/Phase-2%2F5-orange.svg)]()
 [![Language](https://img.shields.io/badge/Language-C-lightgrey.svg)]()
 
@@ -116,6 +117,22 @@ Linexe/
 └── docs/
     └── design.md
 ```
+
+### Version History
+
+#### v0.2.0 — Phase 2 complete
+- Added `hook_registry.c`: virtual Windows registry (reads `HKLM\...\Windows NT\CurrentVersion`, returns Windows 10 Pro data)
+- Added `hook_heap.c`: `HeapAlloc / HeapFree / LocalAlloc / GlobalAlloc` mapped to `malloc`
+- Added `hook_thread.c`: `CreateThread` mapped to `pthread_create`, `WaitForSingleObject` via semaphore, `Sleep` via `nanosleep`
+- Added `linexe-run` launcher script (auto-applies `LD_PRELOAD`)
+- Updated `Makefile` with per-module self-tests (`reg_test`, `heap_test`, `thread_test`)
+- Total hooked APIs: 18
+
+#### v0.1.0 — Phase 1 + Phase 2 foundation
+- `pe_loader.c`: full PE32+ header parser (MZ, COFF, Optional Header, sections)
+- `hook.c`: `LD_PRELOAD` hook layer for OS identity, file system, and memory APIs
+- `api_fake.c`: standalone Windows API fake implementations with self-test
+- `Makefile`: initial build system
 
 ### Roadmap
 
@@ -252,6 +269,22 @@ Linexe/
 └── docs/
     └── design.md
 ```
+
+### バージョン履歴
+
+#### v0.2.0 — Phase 2 完成
+- `hook_registry.c` 追加：Windows仮想レジストリ（`HKLM\...\Windows NT\CurrentVersion` を参照すると Windows 10 Pro の情報を返す）
+- `hook_heap.c` 追加：`HeapAlloc / HeapFree / LocalAlloc / GlobalAlloc` を `malloc` にマップ
+- `hook_thread.c` 追加：`CreateThread` を `pthread_create` にマップ、`WaitForSingleObject` をセマフォで実装、`Sleep` を `nanosleep` に変換
+- `linexe-run` ランチャースクリプト追加（`LD_PRELOAD` を自動適用）
+- `Makefile` をモジュール別セルフテスト対応に更新（`reg_test` / `heap_test` / `thread_test`）
+- フック済みAPI合計：18個
+
+#### v0.1.0 — Phase 1 + Phase 2 基盤
+- `pe_loader.c`：PE32+ヘッダの完全パーサー（MZ / COFF / Optional Header / セクション）
+- `hook.c`：OS識別・ファイルシステム・メモリAPIの `LD_PRELOAD` フックレイヤー
+- `api_fake.c`：セルフテスト付きWindows API偽実装
+- `Makefile`：初期ビルドシステム
 
 ### ロードマップ
 
