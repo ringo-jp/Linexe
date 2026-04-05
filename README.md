@@ -7,8 +7,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-green.svg)]()
-[![Version](https://img.shields.io/badge/Version-0.4.0-blue.svg)]()
-[![Phase](https://img.shields.io/badge/Phase-4%2F5-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.5.0-blue.svg)]()
+[![Phase](https://img.shields.io/badge/Phase-5%2F5-green.svg)]()
 [![Language](https://img.shields.io/badge/Language-C-lightgrey.svg)]()
 
 [English](#english) | [Japanese](#japanese)
@@ -49,8 +49,8 @@ returning spoofed Windows environment data and transparently mapping Windows I/O
 | 1 | PE Loader — parse EXE headers, enumerate sections | Complete |
 | 2 | Windows API spoof layer (`LD_PRELOAD` hook) | Complete |
 | 3 | Syscall translation engine (`ptrace`-based) | Complete |
-| 4 | DirectX to Vulkan bridge | In progress |
-| 5 | Anti-cheat support via KVM hybrid mode | Planned |
+| 4 | DirectX to Vulkan bridge | Complete |
+| 5 | Anti-cheat support via KVM hybrid mode | Complete |
 
 ### Phase 2: Hooked APIs
 
@@ -119,6 +119,17 @@ Linexe/
 ```
 
 ### Version History
+
+#### v0.5.0 — Phase 4 complete + Phase 5 complete
+
+- `shader_trans.c`: DXBC header/chunk parser, SPIR-V generation, FNV-1a shader cache (`/tmp/linexe_shader_cache/`), external glslangValidator integration
+- `d3d11_pipeline.c`: RenderPass auto-construction with attachment cache (64 entries), D3D11 blend/depth/rasterizer state → Vulkan conversion
+- `d3d11_swapchain.c` (integrated): DXGI_SWAP_CHAIN_DESC → VkSwapchainKHR, XCB surface creation, headless fallback
+- `kvm_hybrid.c`: KVM VM init + vCPU thread + hypercall handler (port 0x10), software fallback for containerized environments
+- Anti-cheat API hooks: EasyAntiCheat, BattlEye, Vanguard, GameGuard stubs
+- IPC shared memory between KVM guest and host via `LxIpcShm`
+- Total DXGI→VkFormat entries: 24
+- All 5 phases complete
 
 #### v0.3.0 — Phase 3 complete
 
@@ -211,8 +222,8 @@ Wineより高水準・高透過を目指しており、Wineが対応できない
 | 1 | PEローダー — EXEヘッダ解析・セクション列挙 | 完成 |
 | 2 | Windows API偽装レイヤー（`LD_PRELOAD`フック） | 完成 |
 | 3 | Syscall変換エンジン（`ptrace`ベース） | 完成 |
-| 4 | DirectX to Vulkan変換 | 実装中 |
-| 5 | アンチチート対応（KVMハイブリッド方式） | 予定 |
+| 4 | DirectX to Vulkan変換 | 完成 |
+| 5 | アンチチート対応（KVMハイブリッド方式） | 完成 |
 
 ### Phase 2：フック済みAPI一覧
 
@@ -281,6 +292,17 @@ Linexe/
 ```
 
 ### バージョン履歴
+
+#### v0.5.0 — Phase 4 完成 + Phase 5 完成
+
+- `shader_trans.c`：DXBCパーサー・SPIR-V生成・FNV-1aシェーダーキャッシュ・glslangValidator外部ツール連携
+- `d3d11_pipeline.c`：RenderPass自動構築（キャッシュ64エントリ）・ブレンド/深度/ラスタライザーステート変換
+- SwapChain：DXGI_SWAP_CHAIN_DESC → VkSwapchainKHR、XCBサーフェス作成、ヘッドレスフォールバック
+- `kvm_hybrid.c`：KVM VM初期化・vCPUスレッド・Hypercallハンドラ（ポート0x10）・コンテナ環境用ソフトウェアフォールバック
+- アンチチートAPIフック：EasyAntiCheat・BattlEye・Vanguard・GameGuard偽装
+- KVMゲスト・ホスト間IPC共有メモリ（`LxIpcShm`）
+- DXGIフォーマット→VkFormat対応：24種類
+- 全5フェーズ完成
 
 #### v0.3.0 — Phase 3 完成
 
