@@ -6,22 +6,22 @@ LDFLAGS = -ldl -lpthread
 
 all: linexe linexe_hook.so api_test reg_test heap_test thread_test launcher
 
-linexe: src/pe_loader.c
+linexe: pe_loader.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-linexe_hook.so: src/hook.c src/hook_registry.c src/hook_heap.c src/hook_thread.c
+linexe_hook.so: hook.c hook_registry.c hook_heap.c hook_thread.c
 	$(CC) $(CFLAGS) -shared -fPIC -o $@ $^ $(LDFLAGS)
 
-api_test: src/api_fake.c
+api_test: api_fake.c
 	$(CC) $(CFLAGS) -DLINEXE_TEST_API -o $@ $<
 
-reg_test: src/hook_registry.c
+reg_test: hook_registry.c
 	$(CC) $(CFLAGS) -DLINEXE_TEST_REGISTRY -o $@ $<
 
-heap_test: src/hook_heap.c
+heap_test: hook_heap.c
 	$(CC) $(CFLAGS) -DLINEXE_TEST_HEAP -o $@ $<
 
-thread_test: src/hook_thread.c
+thread_test: hook_thread.c
 	$(CC) $(CFLAGS) -DLINEXE_TEST_THREAD -o $@ $< -lpthread
 
 launcher:
