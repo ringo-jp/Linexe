@@ -7,8 +7,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-green.svg)]()
-[![Version](https://img.shields.io/badge/Version-0.2.0-blue.svg)]()
-[![Phase](https://img.shields.io/badge/Phase-2%2F5-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.4.0-blue.svg)]()
+[![Phase](https://img.shields.io/badge/Phase-4%2F5-orange.svg)]()
 [![Language](https://img.shields.io/badge/Language-C-lightgrey.svg)]()
 
 [English](#english) | [Japanese](#japanese)
@@ -48,8 +48,8 @@ returning spoofed Windows environment data and transparently mapping Windows I/O
 |-------|---------|--------|
 | 1 | PE Loader — parse EXE headers, enumerate sections | Complete |
 | 2 | Windows API spoof layer (`LD_PRELOAD` hook) | Complete |
-| 3 | Syscall translation engine (`ptrace`-based) | Planned |
-| 4 | DirectX to Vulkan bridge | Planned |
+| 3 | Syscall translation engine (`ptrace`-based) | Complete |
+| 4 | DirectX to Vulkan bridge | In progress |
 | 5 | Anti-cheat support via KVM hybrid mode | Planned |
 
 ### Phase 2: Hooked APIs
@@ -119,6 +119,16 @@ Linexe/
 ```
 
 ### Version History
+
+#### v0.3.0 — Phase 3 complete
+
+- `syscall_table.h`: NT syscall translation table (60 entries, Win10 x64 19041+)
+- `syscall_tracer.c`: ptrace tracer, multi-thread support (`PTRACE_O_TRACECLONE`), EINTR retry, signal forwarding
+- `syscall_args.c`: argument translation dispatcher (13 fully translated, 47 stubbed)
+- `syscall_file.c`: NtQueryInformationFile, NtSetInformationFile, full UTF-16LE engine (BMP + surrogate pairs)
+- `syscall_thread.c`: NtCreateThreadEx, NtSuspendThread, NtWaitForSingleObject, anti-debug bypass
+- `syscall_query.c`: NtQueryVirtualMemory (/proc/maps), NtQuerySystemInformation, NtQuerySystemTime, registry NT syscalls
+- Throughput: ~8,600 syscall intercepts/sec
 
 #### v0.2.0 — Phase 2 complete
 - Added `hook_registry.c`: virtual Windows registry (reads `HKLM\...\Windows NT\CurrentVersion`, returns Windows 10 Pro data)
@@ -200,8 +210,8 @@ Wineより高水準・高透過を目指しており、Wineが対応できない
 |-------|------|------|
 | 1 | PEローダー — EXEヘッダ解析・セクション列挙 | 完成 |
 | 2 | Windows API偽装レイヤー（`LD_PRELOAD`フック） | 完成 |
-| 3 | Syscall変換エンジン（`ptrace`ベース） | 予定 |
-| 4 | DirectX to Vulkan変換 | 予定 |
+| 3 | Syscall変換エンジン（`ptrace`ベース） | 完成 |
+| 4 | DirectX to Vulkan変換 | 実装中 |
 | 5 | アンチチート対応（KVMハイブリッド方式） | 予定 |
 
 ### Phase 2：フック済みAPI一覧
@@ -271,6 +281,16 @@ Linexe/
 ```
 
 ### バージョン履歴
+
+#### v0.3.0 — Phase 3 完成
+
+- `syscall_table.h`：NTシステムコール変換テーブル（60エントリ）
+- `syscall_tracer.c`：ptraceトレーサー、マルチスレッド対応、EINTRリトライ
+- `syscall_args.c`：引数変換ディスパッチャ（完全変換13個、スタブ47個）
+- `syscall_file.c`：NtQueryInformationFile・UTF-16LE完全変換（サロゲートペア対応）
+- `syscall_thread.c`：NtCreateThreadEx・NtWaitForSingleObject・アンチデバッグ無効化
+- `syscall_query.c`：NtQueryVirtualMemory（/proc/maps解析）・NtQuerySystemInformation・レジストリNT syscall
+- スループット：約8,600インターセプト/秒
 
 #### v0.2.0 — Phase 2 完成
 - `hook_registry.c` 追加：Windows仮想レジストリ（`HKLM\...\Windows NT\CurrentVersion` を参照すると Windows 10 Pro の情報を返す）
