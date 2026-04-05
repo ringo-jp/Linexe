@@ -17,7 +17,6 @@ typedef struct {
 
 /* ─── COFF Header ────────────────────────────────────────── */
 typedef struct {
-    uint32_t Signature;
     uint16_t Machine;
     uint16_t NumberOfSections;
     uint32_t TimeDateStamp;
@@ -78,6 +77,20 @@ typedef struct {
 #define SEC_READ  0x40000000
 #define SEC_WRITE 0x80000000
 
+static int read_exact(FILE *f, void *buf, size_t size) {
+    return fread(buf, 1, size, f) == size;
+}
+
+static long get_file_size(FILE *f) {
+    long cur = ftell(f);
+    if (cur < 0) return -1;
+    if (fseek(f, 0, SEEK_END) != 0) return -1;
+    long end = ftell(f);
+    if (end < 0) return -1;
+    if (fseek(f, cur, SEEK_SET) != 0) return -1;
+    return end;
+}
+
 static const char* subsystem_name(uint16_t s) {
     switch (s) {
         case 2:  return "Windows GUI";
@@ -99,31 +112,56 @@ static int load_exe(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) { perror("fopen"); return 1; }
 
-    /* 1. MZ check */
     DOS_HEADER dos;
-    if (fread(&dos, sizeof(dos), 1, f) != 1) {
+    if (!read_exact(f, &dos, sizeof(dos))) {
         fprintf(stderr, "[!] Failed to read DOS header\n");
-        fclose(f); return 1;
+        fclose(f);
+        return 1;
     }
     if (dos.e_magic != 0x5A4D) {
         fprintf(stderr, "[!] Not a valid EXE (missing MZ magic)\n");
-        fclose(f); return 1;
+        fclose(f);
+        return 1;
+    }
+
+    long fsize = get_file_size(f);
+    if (fsize < 0) {
+        fprintf(stderr, "[!] Failed to determine file size\n");
+        fclose(f);
+        return 1;
+    }
+    if (dos.e_lfanew == 0 || (long)dos.e_lfanew > fsize - 4) {
+        fprintf(stderr, "[!] Invalid e_lfanew: 0x%X\n", dos.e_lfanew);
+        fclose(f);
+        return 1;
     }
     printf("[*] MZ magic OK  (offset to PE: 0x%X)\n", dos.e_lfanew);
 
-    /* 2. PE signature */
-    fseek(f, dos.e_lfanew, SEEK_SET);
+    if (fseek(f, (long)dos.e_lfanew, SEEK_SET) != 0) {
+        fprintf(stderr, "[!] Failed to seek to PE header\n");
+        fclose(f);
+        return 1;
+    }
+
     uint32_t sig;
-    fread(&sig, 4, 1, f);
+    if (!read_exact(f, &sig, sizeof(sig))) {
+        fprintf(stderr, "[!] Failed to read PE signature\n");
+        fclose(f);
+        return 1;
+    }
     if (sig != 0x00004550) {
         fprintf(stderr, "[!] PE signature mismatch\n");
-        fclose(f); return 1;
+        fclose(f);
+        return 1;
     }
     printf("[*] PE signature OK\n");
 
-    /* 3. COFF header */
     COFF_HEADER coff;
-    fread(&coff, sizeof(coff), 1, f);
+    if (!read_exact(f, &coff, sizeof(coff))) {
+        fprintf(stderr, "[!] Failed to read COFF header\n");
+        fclose(f);
+        return 1;
+    }
     printf("\n── COFF Header ─────────────────────────\n");
     printf("    Machine        : 0x%04X (%s)\n", coff.Machine,
            coff.Machine == 0x8664 ? "x86-64" :
@@ -134,9 +172,12 @@ static int load_exe(const char* path) {
            (coff.Characteristics & 0x2000) ? " [DLL]" : "",
            (coff.Characteristics & 0x0002) ? " [EXE]" : "");
 
-    /* 4. Optional header */
     OPT_HEADER opt;
-    fread(&opt, sizeof(opt), 1, f);
+    if (!read_exact(f, &opt, sizeof(opt))) {
+        fprintf(stderr, "[!] Failed to read Optional header\n");
+        fclose(f);
+        return 1;
+    }
     printf("\n── Optional Header ─────────────────────\n");
     printf("    Magic          : 0x%04X (%s)\n", opt.Magic,
            opt.Magic == 0x020B ? "PE32+ 64bit" :
@@ -147,11 +188,17 @@ static int load_exe(const char* path) {
            opt.SizeOfImage, opt.SizeOfImage / 1024);
     printf("    Subsystem      : %s\n", subsystem_name(opt.Subsystem));
 
-    /* 5. Sections */
-    long sec_offset = dos.e_lfanew + 4
-                    + (long)sizeof(COFF_HEADER)
-                    + coff.SizeOfOptionalHeader;
-    fseek(f, sec_offset, SEEK_SET);
+    long sec_offset = (long)dos.e_lfanew + 4L + (long)sizeof(COFF_HEADER) + (long)coff.SizeOfOptionalHeader;
+    if (sec_offset < 0 || sec_offset > fsize) {
+        fprintf(stderr, "[!] Invalid section table offset\n");
+        fclose(f);
+        return 1;
+    }
+    if (fseek(f, sec_offset, SEEK_SET) != 0) {
+        fprintf(stderr, "[!] Failed to seek to section table\n");
+        fclose(f);
+        return 1;
+    }
 
     printf("\n── Sections ────────────────────────────\n");
     printf("    %-8s  %-10s  %-10s  %-10s  %s\n",
@@ -160,7 +207,11 @@ static int load_exe(const char* path) {
 
     for (int i = 0; i < coff.NumberOfSections; i++) {
         SECTION_HEADER sec;
-        fread(&sec, sizeof(sec), 1, f);
+        if (!read_exact(f, &sec, sizeof(sec))) {
+            fprintf(stderr, "[!] Failed to read section header %d\n", i);
+            fclose(f);
+            return 1;
+        }
         char perms[4];
         section_perms(sec.Characteristics, perms);
         printf("    %-8.8s  0x%08X  0x%08X  0x%08X  %s\n",
