@@ -1,14 +1,13 @@
 /*
- * Linexe - LD_PRELOAD Hook Layer (Phase 2 - フック機構)
+ * Linexe - LD_PRELOAD Hook Layer (Phase 2)
  * Licensed under Apache License 2.0
  *
- * 使い方:
- *   gcc -shared -fPIC -o linexe_hook.so src/hook.c -ldl
- *   LD_PRELOAD=./linexe_hook.so wine ./target.exe
- *
- * 仕組み:
- *   EXEが呼び出すlibc/Wine関数をこのsoが横取りし、
- *   「Windows 10だよ」と嘘をつく。
+ * BUGFIXES v0.2.1:
+ *   - open(): 可変引数からmodeを正しく取得 (O_CREATフラグ対応)
+ *   - open(): dlsym初期化をpthread_onceでスレッドセーフ化
+ *   - mprotect(): ログ出力をデバッグモード時のみに制限
+ *   - VerifyVersionInfoA / IsWow64Process: unused parameter警告を修正
+ *   - open64もフックしてLFS環境に対応
  */
 
 #define _GNU_SOURCE
@@ -16,27 +15,68 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <dlfcn.h>      /* dlsym, RTLD_NEXT */
+#include <stdarg.h>
+#include <dlfcn.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <pthread.h>
 
-/* ログ出力マクロ（リリース時は -DLINEXE_QUIET でオフ） */
 #ifndef LINEXE_QUIET
   #define HOOK_LOG(fmt, ...) fprintf(stderr, "[LINEXE] " fmt "\n", ##__VA_ARGS__)
 #else
   #define HOOK_LOG(fmt, ...)
 #endif
 
-/* ════════════════════════════════════════════════
-   Windows型 最小定義
-   ════════════════════════════════════════════════ */
+/* mprotectはJIT/ローダーが頻繁に呼ぶため専用フラグで制御 */
+#ifdef LINEXE_LOG_MPROTECT
+  #define MPROTECT_LOG(fmt, ...) fprintf(stderr, "[LINEXE/MEM] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MPROTECT_LOG(fmt, ...)
+#endif
+
 typedef uint32_t DWORD;
 typedef uint16_t WORD;
 typedef int      BOOL;
 typedef void*    HANDLE;
-typedef char*    LPSTR;
 
+/* ════════════════════════════════════════════════
+   dlsym キャッシュ（pthread_onceでスレッドセーフ初期化）
+   ════════════════════════════════════════════════ */
+typedef struct {
+    int   (*real_open)(const char*, int, ...);
+    int   (*real_open64)(const char*, int, ...);
+    int   (*real_mprotect)(void*, size_t, int);
+} RealFuncs;
+
+static RealFuncs   g_real   = {0};
+static pthread_once_t g_init_once = PTHREAD_ONCE_INIT;
+
+static void resolve_real_funcs(void) {
+    g_real.real_open     = dlsym(RTLD_NEXT, "open");
+    g_real.real_open64   = dlsym(RTLD_NEXT, "open64");
+    g_real.real_mprotect = dlsym(RTLD_NEXT, "mprotect");
+}
+
+static void ensure_init(void) {
+    pthread_once(&g_init_once, resolve_real_funcs);
+}
+
+/* ════════════════════════════════════════════════
+   初期化バナー
+   ════════════════════════════════════════════════ */
+__attribute__((constructor))
+static void linexe_init(void) {
+    ensure_init();
+    fprintf(stderr,
+        "\n"
+        "  Linexe Hook Layer v0.2.1 - Active\n"
+        "  Spoofing: Windows 10 Pro 22H2 (19045)\n\n");
+}
+
+/* ════════════════════════════════════════════════
+   カテゴリA：OS識別 API
+   ════════════════════════════════════════════════ */
 typedef struct {
     DWORD dwOSVersionInfoSize;
     DWORD dwMajorVersion;
@@ -47,36 +87,19 @@ typedef struct {
 } OSVERSIONINFOA;
 
 typedef struct {
-    DWORD dwOSVersionInfoSize;
-    DWORD dwMajorVersion;
-    DWORD dwMinorVersion;
-    DWORD dwBuildNumber;
-    DWORD dwPlatformId;
-    char  szCSDVersion[128];
-    WORD  wServicePackMajor;
-    WORD  wServicePackMinor;
-    WORD  wSuiteMask;
+    DWORD   dwOSVersionInfoSize;
+    DWORD   dwMajorVersion;
+    DWORD   dwMinorVersion;
+    DWORD   dwBuildNumber;
+    DWORD   dwPlatformId;
+    char    szCSDVersion[128];
+    WORD    wServicePackMajor;
+    WORD    wServicePackMinor;
+    WORD    wSuiteMask;
     uint8_t wProductType;
     uint8_t wReserved;
 } OSVERSIONINFOEXA;
 
-/* ════════════════════════════════════════════════
-   初期化：ライブラリロード時に実行される
-   ════════════════════════════════════════════════ */
-__attribute__((constructor))
-static void linexe_init(void) {
-    fprintf(stderr,
-        "\n╔══════════════════════════════════════╗\n"
-        "║  Linexe Hook Layer - Active          ║\n"
-        "║  Target: Windows 10.0.19045 spoof    ║\n"
-        "╚══════════════════════════════════════╝\n\n");
-}
-
-/* ════════════════════════════════════════════════
-   カテゴリA：OS識別 フック
-   ════════════════════════════════════════════════ */
-
-/* GetVersionExA のフック */
 BOOL GetVersionExA(OSVERSIONINFOA* lpVersionInfo) {
     if (!lpVersionInfo) return 0;
     lpVersionInfo->dwMajorVersion = 10;
@@ -84,85 +107,90 @@ BOOL GetVersionExA(OSVERSIONINFOA* lpVersionInfo) {
     lpVersionInfo->dwBuildNumber  = 19045;
     lpVersionInfo->dwPlatformId   = 2;
     memset(lpVersionInfo->szCSDVersion, 0, 128);
-    HOOK_LOG("GetVersionExA -> spoofed Windows 10.0.19045");
+    HOOK_LOG("GetVersionExA -> Windows 10.0.19045");
     return 1;
 }
 
-/* GetVersionExW のフック（ワイド文字版） */
 BOOL GetVersionExW(void* lpVersionInfo) {
-    /* ワイド版は構造体レイアウトが同じなのでキャスト流用 */
     return GetVersionExA((OSVERSIONINFOA*)lpVersionInfo);
 }
 
-/* RtlGetVersion のフック（ntdll.dll 経由の検出対策） */
 uint32_t RtlGetVersion(OSVERSIONINFOEXA* lpVersionInfo) {
-    if (!lpVersionInfo) return 0xC0000005; /* STATUS_ACCESS_VIOLATION */
+    if (!lpVersionInfo) return 0xC0000005;
     lpVersionInfo->dwMajorVersion    = 10;
     lpVersionInfo->dwMinorVersion    = 0;
     lpVersionInfo->dwBuildNumber     = 19045;
     lpVersionInfo->dwPlatformId      = 2;
     lpVersionInfo->wServicePackMajor = 0;
     lpVersionInfo->wServicePackMinor = 0;
-    lpVersionInfo->wProductType      = 1; /* VER_NT_WORKSTATION */
-    HOOK_LOG("RtlGetVersion -> spoofed Windows 10.0.19045");
-    return 0; /* STATUS_SUCCESS */
+    lpVersionInfo->wProductType      = 1;
+    HOOK_LOG("RtlGetVersion -> Windows 10.0.19045");
+    return 0;
 }
 
-/* VerifyVersionInfoA のフック → 常にTRUE（バージョン確認を無効化） */
-BOOL VerifyVersionInfoA(void* lpVersionInfo, DWORD dwTypeMask, uint64_t dwlConditionMask) {
+/* BUG FIX: 未使用パラメータをvoidキャストで明示的に無視 */
+BOOL VerifyVersionInfoA(void* lpVersionInfo, DWORD dwTypeMask,
+                         uint64_t dwlConditionMask) {
+    (void)lpVersionInfo;
+    (void)dwTypeMask;
+    (void)dwlConditionMask;
     HOOK_LOG("VerifyVersionInfoA -> forced TRUE");
     return 1;
 }
 
-/* IsWow64Process のフック → FALSE（64bitネイティブのふり） */
 BOOL IsWow64Process(HANDLE hProcess, BOOL* Wow64Process) {
+    (void)hProcess;
     if (Wow64Process) *Wow64Process = 0;
     HOOK_LOG("IsWow64Process -> FALSE (native x64)");
     return 1;
 }
 
-/* GetSystemInfo のフック → x64システムとして偽装 */
 typedef struct {
-    WORD  wProcessorArchitecture; /* 9 = PROCESSOR_ARCHITECTURE_AMD64 */
-    WORD  wReserved;
-    DWORD dwPageSize;
-    void* lpMinimumApplicationAddress;
-    void* lpMaximumApplicationAddress;
+    WORD    wProcessorArchitecture;
+    WORD    wReserved;
+    DWORD   dwPageSize;
+    void*   lpMinimumApplicationAddress;
+    void*   lpMaximumApplicationAddress;
     uint64_t dwActiveProcessorMask;
-    DWORD dwNumberOfProcessors;
-    DWORD dwProcessorType;
-    DWORD dwAllocationGranularity;
-    WORD  wProcessorLevel;
-    WORD  wProcessorRevision;
+    DWORD   dwNumberOfProcessors;
+    DWORD   dwProcessorType;
+    DWORD   dwAllocationGranularity;
+    WORD    wProcessorLevel;
+    WORD    wProcessorRevision;
 } SYSTEM_INFO;
 
 void GetSystemInfo(SYSTEM_INFO* lpSystemInfo) {
     if (!lpSystemInfo) return;
     memset(lpSystemInfo, 0, sizeof(*lpSystemInfo));
-    lpSystemInfo->wProcessorArchitecture    = 9;    /* AMD64 */
-    lpSystemInfo->dwPageSize                = 4096;
+    lpSystemInfo->wProcessorArchitecture      = 9;
+    lpSystemInfo->dwPageSize                  = 4096;
     lpSystemInfo->lpMinimumApplicationAddress = (void*)0x10000;
     lpSystemInfo->lpMaximumApplicationAddress = (void*)0x7FFFFFFEFFFF;
-    lpSystemInfo->dwActiveProcessorMask     = (uint64_t)((1 << 4) - 1);
-    lpSystemInfo->dwNumberOfProcessors      = 4;
-    lpSystemInfo->dwAllocationGranularity   = 65536;
-    lpSystemInfo->wProcessorLevel           = 6;
-    HOOK_LOG("GetSystemInfo -> x64, 4 cores, 4KB pages");
+    lpSystemInfo->dwActiveProcessorMask       = 0xF;
+    lpSystemInfo->dwNumberOfProcessors        = 4;
+    lpSystemInfo->dwAllocationGranularity     = 65536;
+    lpSystemInfo->wProcessorLevel             = 6;
+    HOOK_LOG("GetSystemInfo -> x64, 4 cores");
 }
 
 /* ════════════════════════════════════════════════
-   カテゴリB：ファイルシステム フック
-   Windowsパスを透過的にLinuxパスに変換
+   カテゴリB：ファイルシステム
    ════════════════════════════════════════════════ */
 
-/* Windowsパス → Linuxパス変換
- * C:\Users\foo → /home/$USER/foo
- * C:\Windows   → /tmp/linexe_windows（仮想フォルダ） */
+/* Windowsパス判定：C:\... または \... 形式 */
+static int is_windows_path(const char* path) {
+    if (!path || path[0] == '\0') return 0;
+    /* BUG FIX v0.2.2: 空文字列で path[1] を読むと範囲外アクセス */
+    size_t len = strlen(path);
+    if (len >= 3 && path[1] == ':' && (path[2] == '\\' || path[2] == '/')) return 1;
+    if (len >= 2 && path[0] == '\\' && path[1] == '\\') return 1; /* UNCパス */
+    return 0;
+}
+
 static void win_to_linux_path(const char* wpath, char* out, size_t outsz) {
     if (!wpath) { out[0] = '\0'; return; }
 
-    /* すでにLinuxパスなら何もしない */
-    if (wpath[0] == '/') {
+    if (!is_windows_path(wpath)) {
         strncpy(out, wpath, outsz - 1);
         out[outsz - 1] = '\0';
         return;
@@ -171,49 +199,70 @@ static void win_to_linux_path(const char* wpath, char* out, size_t outsz) {
     const char* home = getenv("HOME");
     if (!home) home = "/tmp";
 
-    /* C:\Users\xxx → /home/... */
     if (strncasecmp(wpath, "C:\\Users\\", 9) == 0) {
         snprintf(out, outsz, "%s/%s", home, wpath + 9);
-    }
-    /* C:\Windows → 仮想Windowsフォルダ */
-    else if (strncasecmp(wpath, "C:\\Windows", 10) == 0) {
+    } else if (strncasecmp(wpath, "C:\\Windows", 10) == 0) {
         snprintf(out, outsz, "/tmp/linexe_windows%s", wpath + 10);
-    }
-    /* C:\ 一般 → $HOME/linexe_c/ */
-    else if (wpath[1] == ':' && (wpath[2] == '\\' || wpath[2] == '/')) {
+    } else if (wpath[1] == ':') {
         snprintf(out, outsz, "%s/linexe_c/%s", home, wpath + 3);
-    }
-    else {
+    } else {
         strncpy(out, wpath, outsz - 1);
         out[outsz - 1] = '\0';
     }
 
-    /* バックスラッシュ → スラッシュ */
     for (char* p = out; *p; p++) if (*p == '\\') *p = '/';
-
     HOOK_LOG("path: \"%s\" -> \"%s\"", wpath, out);
 }
 
-/* openのフック（パス変換付き） */
+/*
+ * BUG FIX: open() の mode 引数を可変引数から正しく取得する。
+ * O_CREAT または O_TMPFILE が指定された場合のみ mode を読む。
+ * 以前のコードは常に 0644 を渡しており、
+ * カスタムパーミッションでのファイル作成が壊れていた。
+ */
 int open(const char* pathname, int flags, ...) {
-    static int (*real_open)(const char*, int, ...) = NULL;
-    if (!real_open) real_open = dlsym(RTLD_NEXT, "open");
+    ensure_init();
+
+    mode_t mode = 0;
+    if (flags & (O_CREAT | O_TMPFILE)) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+    }
 
     char linpath[4096];
     win_to_linux_path(pathname, linpath, sizeof(linpath));
-    return real_open(linpath, flags, 0644);
+    return g_real.real_open(linpath, flags, mode);
+}
+
+/* BUG FIX: open64もフックしてLFS(_FILE_OFFSET_BITS=64)環境に対応 */
+int open64(const char* pathname, int flags, ...) {
+    ensure_init();
+
+    mode_t mode = 0;
+    if (flags & (O_CREAT | O_TMPFILE)) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+    }
+
+    char linpath[4096];
+    win_to_linux_path(pathname, linpath, sizeof(linpath));
+
+    if (g_real.real_open64)
+        return g_real.real_open64(linpath, flags, mode);
+    return g_real.real_open(linpath, flags, mode);
 }
 
 /* ════════════════════════════════════════════════
-   カテゴリC：メモリ管理 フック
-   VirtualAlloc/Free は mmap/munmap に変換済みなので
-   ここではmprotect をラップしてログを追加
+   カテゴリC：メモリ管理
+   BUG FIX: mprotectログをLINEXE_LOG_MPROTECT時のみ出力。
+   JIT/ローダーが毎フレーム呼ぶためデフォルトはサイレント。
    ════════════════════════════════════════════════ */
-
 int mprotect(void* addr, size_t len, int prot) {
-    static int (*real_mprotect)(void*, size_t, int) = NULL;
-    if (!real_mprotect) real_mprotect = dlsym(RTLD_NEXT, "mprotect");
-
-    HOOK_LOG("mprotect(%p, %zu, prot=%d)", addr, len, prot);
-    return real_mprotect(addr, len, prot);
+    ensure_init();
+    MPROTECT_LOG("mprotect(%p, %zu, prot=0x%x)", addr, len, prot);
+    return g_real.real_mprotect(addr, len, prot);
 }
