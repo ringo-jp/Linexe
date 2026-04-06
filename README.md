@@ -78,7 +78,7 @@ returning spoofed Windows environment data and transparently mapping Windows I/O
 ### Build
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Linexe.git
+git clone https://github.com/ringo-jp/Linexe.git
 cd Linexe
 make all
 make test
@@ -335,7 +335,7 @@ Wineより高水準・高透過を目指しており、Wineが対応できない
 ### ビルド方法
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Linexe.git
+git clone https://github.com/ringo-jp/Linexe.git
 cd Linexe
 make all
 make test
