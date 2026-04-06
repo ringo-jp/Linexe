@@ -533,6 +533,42 @@ static long translate_NtDelayExecution(pid_t pid,
    NT syscall番号から対応する変換関数を呼び出す
    ════════════════════════════════════════════════ */
 #include "syscall_table.h"
+/* Phase 3 Chunk A/B/C/D - 前方宣言 */
+/* Phase 3 追加変換関数 — syscall_extra.c */
+long translate2_NtWaitForSingleObject(pid_t, struct user_regs_struct*);
+long translate2_NtCreateEvent(pid_t, struct user_regs_struct*);
+long translate2_NtSetEvent(pid_t, struct user_regs_struct*);
+long translate2_NtResetEvent(pid_t, struct user_regs_struct*);
+long translate2_NtCreateMutant(pid_t, struct user_regs_struct*);
+long translate2_NtReleaseMutant(pid_t, struct user_regs_struct*);
+long translate2_NtQueryInformationProcess(pid_t, struct user_regs_struct*);
+long translate2_NtQuerySystemTime(pid_t, struct user_regs_struct*);
+long translate2_NtQueryPerformanceCounter(pid_t, struct user_regs_struct*);
+long translate2_NtFlushBuffersFile(pid_t, struct user_regs_struct*);
+long translate2_NtDeleteFile(pid_t, struct user_regs_struct*);
+
+long translate_NtQueryInformationFile(pid_t, struct user_regs_struct*);
+long translate_NtSetInformationFile(pid_t, struct user_regs_struct*);
+long translate_NtQueryAttributesFile(pid_t, struct user_regs_struct*);
+long translate_NtCreateThread(pid_t, struct user_regs_struct*);
+long translate_NtCreateThreadEx(pid_t, struct user_regs_struct*);
+long translate_NtSuspendThread(pid_t, struct user_regs_struct*);
+long translate_NtResumeThread(pid_t, struct user_regs_struct*);
+long translate_NtWaitForSingleObject(pid_t, struct user_regs_struct*);
+long translate_NtQueryInformationThread(pid_t, struct user_regs_struct*);
+long translate_NtSetInformationThread(pid_t, struct user_regs_struct*);
+long translate_NtQueryVirtualMemory(pid_t, struct user_regs_struct*);
+long translate_NtQuerySystemInformation(pid_t, struct user_regs_struct*);
+long translate_NtQuerySystemTime(pid_t, struct user_regs_struct*);
+long translate_NtQueryPerformanceCounter(pid_t, struct user_regs_struct*);
+long translate_NtFlushVirtualMemory(pid_t, struct user_regs_struct*);
+long translate_NtOpenKey(pid_t, struct user_regs_struct*);
+long translate_NtCreateKey(pid_t, struct user_regs_struct*);
+long translate_NtQueryValueKey(pid_t, struct user_regs_struct*);
+long translate_NtEnumerateKey(pid_t, struct user_regs_struct*);
+long translate_NtEnumerateValueKey(pid_t, struct user_regs_struct*);
+long translate_NtSetValueKey(pid_t, struct user_regs_struct*);
+
 
 long linexe_translate_syscall(pid_t pid,
                                struct user_regs_struct* regs) {
@@ -577,6 +613,40 @@ long linexe_translate_syscall(pid_t pid,
         case 0x002C: return translate_NtTerminateProcess(pid, regs);
         case 0x0053: return translate_NtTerminateThread(pid, regs);
         case 0x0034: return translate_NtDelayExecution(pid, regs);
+        /* ── Chunk A: File info ── */
+        case 0x0011: return translate_NtQueryInformationFile(pid, regs);
+        case 0x0027: return translate_NtSetInformationFile(pid, regs);
+        case 0x0038: return translate_NtQueryAttributesFile(pid, regs);
+        /* ── Chunk B: Thread/Sync ── */
+        case 0x004E: return translate_NtCreateThread(pid, regs);
+        case 0x00C8: return translate_NtCreateThreadEx(pid, regs);
+        case 0x002F: return translate_NtSuspendThread(pid, regs);
+        case 0x0032: return translate_NtResumeThread(pid, regs);
+        case 0x0004: return translate2_NtWaitForSingleObject(pid, regs); /* futex完全実装 */
+        case 0x0025: return translate_NtQueryInformationThread(pid, regs);
+        case 0x000A: return translate_NtSetInformationThread(pid, regs);
+        /* ── Chunk C: Memory/System ── */
+        case 0x0023: return translate_NtQueryVirtualMemory(pid, regs);
+        case 0x0036: return translate_NtQuerySystemInformation(pid, regs);
+        case 0x002E: return translate_NtFlushVirtualMemory(pid, regs);
+        /* ── Extra: 昇格済みSTUB ── */
+        case 0x0048: return translate2_NtCreateEvent(pid, regs);
+        case 0x00D8: return translate2_NtSetEvent(pid, regs);
+        case 0x00E2: return translate2_NtResetEvent(pid, regs);
+        case 0x005A: return translate2_NtCreateMutant(pid, regs);
+        case 0x00B4: return translate2_NtReleaseMutant(pid, regs);
+        case 0x0019: return translate2_NtQueryInformationProcess(pid, regs);
+        case 0x0060: return translate2_NtQuerySystemTime(pid, regs);
+        case 0x005E: return translate2_NtQueryPerformanceCounter(pid, regs);
+        case 0x0070: return translate2_NtFlushBuffersFile(pid, regs);
+        case 0x0057: return translate2_NtDeleteFile(pid, regs);
+        /* ── Chunk D: Registry ── */
+        case 0x001A: return translate_NtOpenKey(pid, regs);
+        case 0x005C: return translate_NtCreateKey(pid, regs);
+        case 0x0017: return translate_NtQueryValueKey(pid, regs);
+        case 0x000C: return translate_NtEnumerateKey(pid, regs);
+        case 0x0010: return translate_NtEnumerateValueKey(pid, regs);
+        case 0x00C7: return translate_NtSetValueKey(pid, regs);
         default:
             TLOG("TRANSLATED entry for 0x%04X has no handler, stub", nt_nr);
             regs->rax = 0;

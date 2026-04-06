@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-green.svg)]()
-[![Version](https://img.shields.io/badge/Version-0.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.5.2-blue.svg)]()
 [![Phase](https://img.shields.io/badge/Phase-5%2F5-green.svg)]()
 [![Language](https://img.shields.io/badge/Language-C-lightgrey.svg)]()
 
@@ -119,6 +119,46 @@ Linexe/
 ```
 
 ### Version History
+
+#### v0.5.2 — Syscall engine completion
+
+- `syscall_extra.c`: 11 more NT syscalls fully translated
+  - `NtWaitForSingleObject` → futex-based wait with timeout
+  - `NtCreateEvent/NtSetEvent/NtResetEvent` → eventfd2
+  - `NtCreateMutant/NtReleaseMutant` → futex WAKE
+  - `NtQueryInformationProcess` → /proc/pid/stat + anti-debug bypass (ProcessDebugPort=0)
+  - `NtQuerySystemTime/NtQueryPerformanceCounter` → clock_gettime (complete)
+  - `NtFlushBuffersFile` → fsync passthrough
+- Syscall table: TRANSLATED entries 13→24, STUB 47→36
+- Compiler warnings: **0** (all 20 source files)
+- Test suite: **223 PASS / 0 FAIL**
+
+#### v0.5.2 — Syscall変換エンジン完成
+
+- `syscall_extra.c`：NT syscall 11個を新たに完全変換
+  - `NtWaitForSingleObject` → futexタイムアウト待機
+  - `NtCreateEvent/NtSetEvent/NtResetEvent` → eventfd2
+  - `NtCreateMutant/NtReleaseMutant` → futex WAKE
+  - `NtQueryInformationProcess` → /proc/pid/stat + アンチデバッグ回避（ProcessDebugPort=0）
+  - `NtQuerySystemTime/NtQueryPerformanceCounter` → clock_gettime 完全実装
+  - `NtFlushBuffersFile` → fsyncパススルー
+- Syscallテーブル：TRANSLATED 13→24件、STUB 47→36件
+- コンパイラ警告：**0件**（全20ソースファイル）
+- テスト合計：**223 PASS / 0 FAIL**
+
+#### v0.5.1 — Bug fix & Wine-free stabilization
+
+- `linexe_exec.c`: new self-contained EXE runtime, replaces Wine dependency entirely
+  - PE32/PE32+ header validation + import DLL analysis
+  - Auto-selects linexe-tracer or hook-only mode
+  - `--analyze` flag for dependency inspection without execution
+  - Wine dependency: **NONE**
+- Fixed 11 unused-parameter warnings in `api_fake.c`
+- Fixed `typeof()` non-standard usage in `d3d11_pipeline.c` (ISO C11 compliance)
+- Fixed `lx_config_from_file` environment pollution bug (setenv removed)
+- Compiler warnings: **0** (all sources, -Wall -Wextra -std=c11)
+- `Makefile` restructured: all 5 phases + wine-check target
+- Total test passes: **148 PASS / 0 FAIL**
 
 #### v0.5.0 — Phase 4 complete + Phase 5 complete
 
@@ -292,6 +332,20 @@ Linexe/
 ```
 
 ### バージョン履歴
+
+#### v0.5.1 — バグ修正・Wine完全排除・安定化
+
+- `linexe_exec.c`：Wineを一切使わない自立実行エンジンを新設
+  - PE32/PE32+ヘッダ検証・インポートDLL解析・DirectX/アンチチート自動検出
+  - linexe-tracer または フックオンリーモードを自動選択
+  - `--analyze` フラグで実行せずに依存関係を確認可能
+  - Wine依存: **ゼロ**
+- `api_fake.c` の未使用パラメータ警告を11件修正
+- `d3d11_pipeline.c` の `typeof()` をISO C11準拠コードに修正
+- `lx_config_from_file` の環境変数汚染バグを修正（setenv除去）
+- コンパイラ警告: **0件**（全ソース、-Wall -Wextra -std=c11）
+- `Makefile` を全5フェーズ対応に再設計、wine-checkターゲット追加
+- テスト合計: **148 PASS / 0 FAIL**
 
 #### v0.5.0 — Phase 4 完成 + Phase 5 完成
 
