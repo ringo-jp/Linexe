@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-green.svg)]()
-[![Version](https://img.shields.io/badge/Version-0.5.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.5.3-blue.svg)]()
 [![Phase](https://img.shields.io/badge/Phase-5%2F5-green.svg)]()
 [![Language](https://img.shields.io/badge/Language-C-lightgrey.svg)]()
 
@@ -119,6 +119,50 @@ Linexe/
 ```
 
 ### Version History
+
+#### v0.5.3 — Real execution path + honest status
+
+- `pe_section_loader.c`: actual PE section loader (replaces stub)
+  - Loads all PE sections into memory with correct permissions (R/W/X)
+  - Applies base relocations (ASLR-compatible)
+  - Resolves import table (IAT) via `dlsym` against `linexe_hook.so`
+  - Runs TLS callbacks before entry_point
+  - Transfers control to Windows entry_point natively
+- Honest completion status corrected (see table below)
+- 0 compiler warnings, 223 PASS / 0 FAIL
+
+**Honest module status:**
+
+| Module | What actually works | What doesn't yet |
+|--------|---------------------|-----------------|
+| `pe_section_loader.c` | Section load, relocations, IAT, TLS, entry_point jump | SEH, VEH, delay imports |
+| `hook.c` + `hook_*.c` | API spoofing when EXE is already running | Depends on loader above |
+| `syscall_tracer.c` | ptrace infra, signal handling, EINTR retry | Only intercepts Linux children; EXE needs loader |
+| `d3d11_hook.c` | D3D11CreateDevice → fake COM object, VkDevice init | Actual rendering (RenderPass→Draw incomplete) |
+| `shader_trans.c` | DXBC parse, SPIR-V passthrough cache | Full DXBC→SPIR-V direct translation |
+| `kvm_hybrid.c` | Software fallback, AC API spoof | KVM guest Windows kernel not bundled |
+
+#### v0.5.3 — 実行パスの実装 + 正直な完成度
+
+- `pe_section_loader.c`：実際の PE セクションローダーを実装（スタブではなく本物）
+  - 全セクションを正しいパーミッション（R/W/X）でメモリに展開
+  - ベースリロケーション（ASLR対応）を適用
+  - インポートテーブル（IAT）を `dlsym` で `linexe_hook.so` に解決
+  - TLS コールバックを entry_point 前に実行
+  - Windows の entry_point にネイティブで制御移譲
+- 完成度の正直な修正（下表参照）
+- 警告0件、223 PASS / 0 FAIL
+
+**モジュール別・正直な完成度:**
+
+| モジュール | 実際に動くこと | まだ動かないこと |
+|-----------|-------------|----------------|
+| `pe_section_loader.c` | セクションロード・リロケーション・IAT・TLS・エントリジャンプ | SEH・VEH・遅延インポート |
+| `hook.c` + `hook_*.c` | EXE 実行中の API 偽装 | ローダーに依存 |
+| `syscall_tracer.c` | ptrace 基盤・シグナル処理・EINTR リトライ | EXE には PE ローダーが別途必要 |
+| `d3d11_hook.c` | D3D11CreateDevice 偽装・VkDevice 初期化まで | 実際の描画（RenderPass→Draw 未完成） |
+| `shader_trans.c` | DXBC パース・SPIR-V パススルーキャッシュ | DXBC 命令直接変換 |
+| `kvm_hybrid.c` | ソフトウェアフォールバック・AC API 偽装 | KVM ゲスト Windows カーネル未同梱 |
 
 #### v0.5.2 — Syscall engine completion
 

@@ -29,6 +29,9 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <libgen.h>
+
+/* PE セクションローダー (pe_section_loader.c) */
+int linexe_load_and_exec(const char* exe_path, int argc, char* const* argv);
 #include <limits.h>
 
 /* ════════════════════════════════════════════════
@@ -238,9 +241,10 @@ static int linexe_exec(const char* exe_path, char* const argv[],
         return 127;
 
     } else {
-        /* モード1: LD_PRELOAD のみ（軽量モード） */
-        printf("[Linexe] Starting in hook-only mode...\n");
+        /* モード1: PE セクションローダー（直接実行）*/
+        printf("[Linexe] Starting with PE section loader (direct execution)...\n");
 
+        /* LD_PRELOAD で hook ライブラリを注入した上で PE ローダーを呼ぶ */
         char* existing = getenv("LD_PRELOAD");
         char new_preload[PATH_MAX * 2];
         if (existing && existing[0])
@@ -249,9 +253,11 @@ static int linexe_exec(const char* exe_path, char* const argv[],
             snprintf(new_preload, sizeof(new_preload), "%s", hook_path);
         setenv("LD_PRELOAD", new_preload, 1);
 
-        execvp(exe_path, argv);
-        perror("execvp");
-        return 127;
+        /* argc/argv の末尾を数える */
+        int exe_argc = 0;
+        while (argv[exe_argc]) exe_argc++;
+
+        return linexe_load_and_exec(exe_path, exe_argc, argv);
     }
 }
 
