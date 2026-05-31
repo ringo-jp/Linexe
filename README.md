@@ -20,6 +20,10 @@
 <a name="english"></a>
 ## English
 
+### !Attention!
+
+Supported on x86_64 only!
+
 ### What is Linexe?
 
 Linexe is a Windows EXE compatibility layer for Linux, built from scratch.
@@ -276,6 +280,9 @@ Disclaimer: The author takes no responsibility for viruses or malware included i
 
 <a name="japanese"></a>
 ## 日本語
+
+### 注意！
+x86_64専用です！
 
 ### Linexeとは？
 
