@@ -11,7 +11,7 @@ LDFLAGS = -ldl -lpthread
 all: linexe linexe_hook.so linexe-tracer
 
 # Phase 1+自立実行エンジン
-linexe: linexe_exec.c pe_section_loader.c
+linexe: linexe_exec.c pe_section_loader.c linexe_seh.c
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "[✓] linexe - Wine-free EXE runtime"
 
@@ -22,7 +22,8 @@ linexe_hook.so: hook.c hook_registry.c hook_heap.c hook_thread.c
 
 # Phase 3: Syscallトレーサー
 linexe-tracer: syscall_tracer.c syscall_args.c syscall_extra.c \
-               syscall_file.c syscall_thread.c syscall_query.c
+               syscall_file.c syscall_thread.c syscall_query.c \
+               syscall_section.c
 	$(CC) $(CFLAGS) -I . -o $@ $^ $(LDFLAGS)
 	@echo "[✓] linexe-tracer - NT syscall translation engine"
 

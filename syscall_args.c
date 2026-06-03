@@ -568,6 +568,12 @@ long translate_NtQueryValueKey(pid_t, struct user_regs_struct*);
 long translate_NtEnumerateKey(pid_t, struct user_regs_struct*);
 long translate_NtEnumerateValueKey(pid_t, struct user_regs_struct*);
 long translate_NtSetValueKey(pid_t, struct user_regs_struct*);
+long translate_NtCreateSection(pid_t, struct user_regs_struct*);
+long translate_NtMapViewOfSection(pid_t, struct user_regs_struct*);
+long translate_NtUnmapViewOfSection(pid_t, struct user_regs_struct*);
+long translate_NtWaitForMultipleObjects(pid_t, struct user_regs_struct*);
+long translate_NtCreateSemaphore(pid_t, struct user_regs_struct*);
+long translate_NtReleaseSemaphore(pid_t, struct user_regs_struct*);
 
 
 long linexe_translate_syscall(pid_t pid,
@@ -640,6 +646,13 @@ long linexe_translate_syscall(pid_t pid,
         case 0x005E: return translate2_NtQueryPerformanceCounter(pid, regs);
         case 0x0070: return translate2_NtFlushBuffersFile(pid, regs);
         case 0x0057: return translate2_NtDeleteFile(pid, regs);
+        /* ── Chunk E: Section/Semaphore ── */
+        case 0x004A: return translate_NtCreateSection(pid, regs);
+        case 0x0028: return translate_NtMapViewOfSection(pid, regs);
+        case 0x0049: return translate_NtUnmapViewOfSection(pid, regs);
+        case 0x00A0: return translate_NtWaitForMultipleObjects(pid, regs);
+        case 0x00BC: return translate_NtCreateSemaphore(pid, regs);
+        case 0x00C3: return translate_NtReleaseSemaphore(pid, regs);
         /* ── Chunk D: Registry ── */
         case 0x001A: return translate_NtOpenKey(pid, regs);
         case 0x005C: return translate_NtCreateKey(pid, regs);

@@ -33,7 +33,7 @@
    ════════════════════════════════════════════════ */
 #define __try \
     do { \
-        sigjmp_t* __env = linexe_seh_enter_try(); \
+        sigjmp_buf* __env = linexe_seh_enter_try(); \
         if (sigsetjmp(*__env, 1) == 0) {
 
 #define __except(filter) \
@@ -50,7 +50,7 @@
     } while(0)
 
 // スレッドローカルの例外コンテキスト
-static __thread sigjmp_t g_seh_jump_env;
+static __thread sigjmp_buf g_seh_jump_env;
 static __thread bool     g_seh_try_active = false;
 static __thread uint32_t g_last_exception_code = 0;
 
@@ -235,7 +235,7 @@ void linexe_init_seh_bridge(void) {
     SEH_LOG("Linux-to-Windows SEH Bridge is now ACTIVE (Optimized for x86_64).");
 }
 
-sigjmp_t* linexe_seh_enter_try(void) {
+sigjmp_buf* linexe_seh_enter_try(void) {
     g_seh_try_active = true;
     return &g_seh_jump_env;
 }

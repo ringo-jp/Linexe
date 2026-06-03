@@ -40,6 +40,9 @@
 #include <sys/stat.h>
 #include <stdarg.h>
 
+/* SEH ブリッジ（linexe_seh.c から） */
+extern void linexe_init_seh_bridge(void);
+
 /* ════════════════════════════════════════════════
    PE 構造体定義（完全版）
    ════════════════════════════════════════════════ */
@@ -544,6 +547,9 @@ int linexe_load_and_exec(const char* exe_path, int argc, char* const* argv) {
     if (pe_apply_relocations(&img)      < 0) return 1;
     pe_resolve_imports(&img);   /* unresolved は警告のみ */
     pe_run_tls_callbacks(&img);
+
+    /* SEH/VEH ブリッジを起動（シグナルハンドラ登録・代替スタック確保） */
+    linexe_init_seh_bridge();
 
     /* セクションの実行権限を最終確認 */
     for (int i = 0; i < img.num_sections; i++) {

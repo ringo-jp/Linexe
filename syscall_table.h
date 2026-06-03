@@ -99,11 +99,11 @@ static const SC_ENTRY SYSCALL_TABLE[] = {
     { 0x001D, "NtExtendSection",
       SYS_ftruncate,       "ftruncate",       SC_STUB        },
     { 0x004A, "NtCreateSection",
-      SYS_mmap,            "mmap",            SC_STUB        },
+      SYS_mmap,            "mmap",            SC_TRANSLATED  },
     { 0x0028, "NtMapViewOfSection",
-      SYS_mmap,            "mmap",            SC_STUB        },
+      SYS_mmap,            "mmap",            SC_TRANSLATED  },
     { 0x0049, "NtUnmapViewOfSection",
-      SYS_munmap,          "munmap",          SC_STUB        },
+      SYS_munmap,          "munmap",          SC_TRANSLATED  },
 
     /* ── プロセス・スレッド ───────────────────── */
     { 0x002C, "NtTerminateProcess",
@@ -135,7 +135,7 @@ static const SC_ENTRY SYSCALL_TABLE[] = {
     { 0x0004, "NtWaitForSingleObject",
       SYS_futex,           "futex",           SC_TRANSLATED        },
     { 0x00A0, "NtWaitForMultipleObjects",
-      SYS_futex,           "futex",           SC_STUB        },
+      SYS_futex,           "futex",           SC_TRANSLATED  },
     { 0x0034, "NtDelayExecution",
       SYS_nanosleep,       "nanosleep",       SC_TRANSLATED  },
     { 0x005A, "NtCreateMutant",
@@ -149,9 +149,9 @@ static const SC_ENTRY SYSCALL_TABLE[] = {
     { 0x00E2, "NtResetEvent",
       SYS_read,         "(eventfd read)",  SC_TRANSLATED        },
     { 0x00BC, "NtCreateSemaphore",
-      SC_NO_LINUX,         "(sem_open)",      SC_STUB        },
+      SC_NO_LINUX,         "(eventfd)",       SC_TRANSLATED  },
     { 0x00C3, "NtReleaseSemaphore",
-      SC_NO_LINUX,         "(sem_post)",      SC_STUB        },
+      SC_NO_LINUX,         "(eventfd write)", SC_TRANSLATED  },
 
     /* ── システム情報 ─────────────────────────── */
     { 0x0036, "NtQuerySystemInformation",
