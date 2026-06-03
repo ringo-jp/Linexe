@@ -3,6 +3,7 @@
  * Minimal safety pass: lock around thread table access, safer handle checks.
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
