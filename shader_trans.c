@@ -292,6 +292,7 @@ static void spv_op(SpvBuilder* b, uint32_t opcode, const uint32_t* ops, int n) {
 }
 
 /* パススルー頂点シェーダー SPIR-V (gl_Position = vec4(0,0,0,1)) */
+__attribute__((unused))
 static uint8_t* build_passthrough_vs(size_t* out_size) {
     SpvBuilder b;
     if (spv_init(&b, 128) < 0) return NULL;
@@ -417,8 +418,8 @@ static int try_external_compiler(const char* glsl_src, const char* stage,
     fputs(glsl_src, f);
     fclose(f);
 
-    /* コンパイル実行 */
-    char cmd[512];
+    /* コンパイル実行 (in_path + out_path 各256 + 固定部分 ~50 で最大562バイト必要) */
+    char cmd[640];
     snprintf(cmd, sizeof(cmd),
              "glslangValidator -V -S %s -o %s %s 2>/dev/null",
              stage, out_path, in_path);

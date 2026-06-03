@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
 
 /* ════════════════════════════════════════════════
    カテゴリA：OS識別系 API
@@ -73,6 +74,7 @@ int fake_RtlGetVersion(OSVERSIONINFOEXA* lpVersionInfo) {
 /* IsWow64Process の偽実装
  * → FALSE = 64bitネイティブとして動いているふり */
 int fake_IsWow64Process(void* hProcess, int* Wow64Process) {
+    (void)hProcess;
     if (Wow64Process) *Wow64Process = 0; /* FALSE */
     printf("[API_FAKE] IsWow64Process -> FALSE (native 64bit)\n");
     return 1; /* TRUE = 成功 */
@@ -97,6 +99,10 @@ int fake_CreateFileA(const char* lpFileName,
                      uint32_t    dwFlagsAndAttributes,
                      void*       hTemplateFile)
 {
+    (void)dwShareMode;
+    (void)lpSecurityAttributes;
+    (void)dwFlagsAndAttributes;
+    (void)hTemplateFile;
     int flags = 0;
 
     /* GENERIC_READ=0x80000000, GENERIC_WRITE=0x40000000 */
@@ -128,6 +134,7 @@ int fake_ReadFile(int     hFile,
                   uint32_t* lpNumberOfBytesRead,
                   void*   lpOverlapped)
 {
+    (void)lpOverlapped;
     ssize_t n = read(hFile, lpBuffer, nNumberOfBytesToRead);
     if (lpNumberOfBytesRead) *lpNumberOfBytesRead = (n > 0) ? (uint32_t)n : 0;
     printf("[API_FAKE] ReadFile(fd=%d, size=%u) -> %zd bytes\n",
@@ -142,6 +149,7 @@ int fake_WriteFile(int      hFile,
                    uint32_t* lpNumberOfBytesWritten,
                    void*    lpOverlapped)
 {
+    (void)lpOverlapped;
     ssize_t n = write(hFile, lpBuffer, nNumberOfBytesToWrite);
     if (lpNumberOfBytesWritten) *lpNumberOfBytesWritten = (n > 0) ? (uint32_t)n : 0;
     printf("[API_FAKE] WriteFile(fd=%d, size=%u) -> %zd bytes\n",
@@ -169,6 +177,7 @@ void* fake_VirtualAlloc(void*    lpAddress,
                          uint32_t flAllocationType,
                          uint32_t flProtect)
 {
+    (void)flAllocationType;
     int prot = PROT_NONE;
     if (flProtect & PAGE_READWRITE)         prot = PROT_READ | PROT_WRITE;
     if (flProtect & PAGE_EXECUTE_READ)      prot = PROT_READ | PROT_EXEC;
@@ -183,8 +192,13 @@ void* fake_VirtualAlloc(void*    lpAddress,
     return ptr;
 }
 
-/* VirtualFree → munmap */
+/* VirtualFree → munmap
+ * MEM_RELEASE (0x8000) は dwSize=0 で呼ばれる仕様。
+ * munmap(addr, 0) は EINVAL なので最低 PAGE_SIZE を渡す。 */
 int fake_VirtualFree(void* lpAddress, size_t dwSize, uint32_t dwFreeType) {
+    (void)dwFreeType;
+    if (dwSize == 0)
+        dwSize = (size_t)sysconf(_SC_PAGE_SIZE);
     int r = munmap(lpAddress, dwSize);
     printf("[API_FAKE] VirtualFree(%p) -> %s\n", lpAddress, r == 0 ? "OK" : "FAIL");
     return (r == 0) ? 1 : 0;
@@ -230,6 +244,8 @@ int fake_RegQueryValueExA(const char* hKey,
                            void*       lpData,
                            uint32_t*   lpcbData)
 {
+    (void)hKey;
+    (void)lpReserved;
     for (int i = 0; FAKE_REGISTRY[i].key != NULL; i++) {
         if (strcmp(FAKE_REGISTRY[i].value_name, lpValueName) == 0) {
             const char* data = FAKE_REGISTRY[i].data;

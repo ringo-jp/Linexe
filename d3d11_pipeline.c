@@ -252,16 +252,17 @@ void linexe_dx11_blend_to_vk(const D3D11_BLEND_DESC* dx,
                                VkPipelineColorBlendAttachment* vk_out,
                                int rt_index) {
     if (!dx || !vk_out || rt_index < 0 || rt_index > 7) return;
-    const typeof(dx->RenderTarget[0])* rt = &dx->RenderTarget[rt_index];
+    const D3D11_BLEND_DESC* d = dx; /* alias for readability */
+    int i = rt_index;
 
-    vk_out->blendEnable          = rt->BlendEnable ? 1 : 0;
-    vk_out->srcColorBlendFactor  = dx_blend_to_vk(rt->SrcBlend);
-    vk_out->dstColorBlendFactor  = dx_blend_to_vk(rt->DestBlend);
-    vk_out->colorBlendOp         = dx_blend_op_to_vk(rt->BlendOp);
-    vk_out->srcAlphaBlendFactor  = dx_blend_to_vk(rt->SrcBlendAlpha);
-    vk_out->dstAlphaBlendFactor  = dx_blend_to_vk(rt->DestBlendAlpha);
-    vk_out->alphaBlendOp         = dx_blend_op_to_vk(rt->BlendOpAlpha);
-    vk_out->colorWriteMask       = rt->RenderTargetWriteMask & 0xF;
+    vk_out->blendEnable          = d->RenderTarget[i].BlendEnable ? 1 : 0;
+    vk_out->srcColorBlendFactor  = dx_blend_to_vk(d->RenderTarget[i].SrcBlend);
+    vk_out->dstColorBlendFactor  = dx_blend_to_vk(d->RenderTarget[i].DestBlend);
+    vk_out->colorBlendOp         = dx_blend_op_to_vk(d->RenderTarget[i].BlendOp);
+    vk_out->srcAlphaBlendFactor  = dx_blend_to_vk(d->RenderTarget[i].SrcBlendAlpha);
+    vk_out->dstAlphaBlendFactor  = dx_blend_to_vk(d->RenderTarget[i].DestBlendAlpha);
+    vk_out->alphaBlendOp         = dx_blend_op_to_vk(d->RenderTarget[i].BlendOpAlpha);
+    vk_out->colorWriteMask       = d->RenderTarget[i].RenderTargetWriteMask & 0xF;
 
     PL_LOG("BlendState[%d]: enable=%u src=%u dst=%u op=%u",
            rt_index, vk_out->blendEnable,
@@ -430,7 +431,6 @@ int linexe_swapchain_init(const DXGI_SWAP_CHAIN_DESC* desc,
     if (xcb_lib) {
         typedef void* (*PFN_xcb_connect)(const char*, int*);
         typedef uint32_t (*PFN_xcb_generate_id)(void*);
-        typedef void* (*PFN_xcb_create_window_checked)(void*,...);
 
         PFN_xcb_connect xcb_connect =
             (PFN_xcb_connect)dlsym(xcb_lib, "xcb_connect");
