@@ -94,9 +94,9 @@ static void handle_windows_syscall(pid_t tid, struct user_regs_struct* regs) {
 
     // 本来のレジスタ値を退避
     uint64_t arg1 = regs->rcx; // Windowsの第1引数はRCX
-    uint64_t arg2 = regs->rdx; // Windowsの第2引数はRDX
-    uint64_t arg3 = regs->r8;  // Windowsの第3引数はR8
-    uint64_t arg4 = regs->r9;  // Windowsの第4引数はR9
+    (void)regs->rdx; // arg2: 呼び出し先で直接参照
+    (void)regs->r8;  // arg3: 呼び出し先で直接参照
+    (void)regs->r9;  // arg4: 呼び出し先で直接参照
 
     // 仮のNtReadFile(0x0006) や NtWriteFile(0x0008) などのエミュレーション
     // 実装状況に応じて、Linuxのネイティブなシステムコール番号、または安全なモック値に書き換える
@@ -217,8 +217,6 @@ void linexe_start_tracer(pid_t child_pid) {
                 ptrace(PTRACE_SYSCALL, active_tid, NULL, (void*)(intptr_t)SIGTRAP);
                 continue;
             }
-。
-            */
             if (sig == SIGSEGV || sig == SIGFPE || sig == SIGILL || sig == SIGBUS) {
                 const char* sig_name = (sig == SIGSEGV) ? "SIGSEGV" :
                                        (sig == SIGFPE)  ? "SIGFPE" :
@@ -240,4 +238,57 @@ void linexe_start_tracer(pid_t child_pid) {
             ptrace(PTRACE_SYSCALL, active_tid, NULL, (void*)(intptr_t)sig);
         }
     }
+}
+
+/* ════════════════════════════════════════════════
+   メインエントリポイント
+   使用法: linexe-tracer --hook <hook.so> <exe> [args...]
+   ════════════════════════════════════════════════ */
+int main(int argc, char *argv[]) {
+    const char *hook_path = NULL;
+    int exe_idx = 1;
+
+    /* --hook <path> フラグを解析 */
+    if (argc >= 3 && strcmp(argv[1], "--hook") == 0) {
+        hook_path = argv[2];
+        exe_idx   = 3;
+    }
+
+    if (exe_idx >= argc) {
+        fprintf(stderr,
+            "Linexe Syscall Tracer\n"
+            "Usage: %s [--hook <hook.so>] <exe.exe> [args...]\n",
+            argv[0]);
+        return 1;
+    }
+
+    const char *exe_path = argv[exe_idx];
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork");
+        return 1;
+    }
+
+    if (child == 0) {
+        /* 子プロセス: tracee */
+        if (hook_path) {
+            setenv("LD_PRELOAD", hook_path, 1);
+        }
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        raise(SIGSTOP);
+        execv(exe_path, argv + exe_idx);
+        perror("execv");
+        _exit(127);
+    }
+
+    /* 親プロセス: トレーサー */
+    int status;
+    waitpid(child, &status, 0);
+    ptrace(PTRACE_SETOPTIONS, child, NULL,
+           (void *)(PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACECLONE));
+    ptrace(PTRACE_SYSCALL, child, NULL, NULL);
+
+    linexe_start_tracer(child);
+    return 0;
 }

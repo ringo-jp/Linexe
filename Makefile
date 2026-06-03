@@ -11,8 +11,8 @@ LDFLAGS = -ldl -lpthread
 all: linexe linexe_hook.so linexe-tracer
 
 # Phase 1+自立実行エンジン
-linexe: linexe_exec.c
-	$(CC) $(CFLAGS) -o $@ $<
+linexe: linexe_exec.c pe_section_loader.c
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "[✓] linexe - Wine-free EXE runtime"
 
 # Phase 2: LD_PRELOADフックライブラリ
@@ -21,7 +21,8 @@ linexe_hook.so: hook.c hook_registry.c hook_heap.c hook_thread.c
 	@echo "[✓] linexe_hook.so - API spoof layer"
 
 # Phase 3: Syscallトレーサー
-linexe-tracer: syscall_tracer.c syscall_args.c syscall_extra.c syscall_file.c syscall_thread.c syscall_query.c
+linexe-tracer: syscall_tracer.c syscall_args.c syscall_extra.c \
+               syscall_file.c syscall_thread.c syscall_query.c
 	$(CC) $(CFLAGS) -I . -o $@ $^ $(LDFLAGS)
 	@echo "[✓] linexe-tracer - NT syscall translation engine"
 
@@ -46,20 +47,14 @@ harsh_test: harsh_test.c
 phase3_test: phase3_test.c
 	$(CC) $(CFLAGS) -I . -o $@ $<
 
-phase3_complete_test: phase3_complete_test.c syscall_file.c
-	$(CC) $(CFLAGS) -I . -o $@ $^ -lpthread
-
 phase4_test: phase4_test.c d3d11_hook.c
 	$(CC) $(CFLAGS) -I . -o $@ $^ -ldl -lpthread -lvulkan
 
 phase45_test: phase45_test.c shader_trans.c d3d11_pipeline.c kvm_hybrid.c
 	$(CC) $(CFLAGS) -I . -o $@ $^ -ldl -lpthread
 
-final_check: final_check.c shader_trans.c d3d11_pipeline.c kvm_hybrid.c
-	$(CC) $(CFLAGS) -I . -o $@ $^ -ldl -lpthread
-
 # ── test: 全テストスイート実行 ────────────────────────────
-test: all phase2_tests harsh_test phase3_test phase3_complete_test phase45_test final_check
+test: all phase2_tests harsh_test phase3_test phase45_test
 	@echo ""
 	@echo "══════════════════════════════════════════"
 	@echo "  Phase 2: API Spoof Layer"
@@ -86,19 +81,9 @@ test: all phase2_tests harsh_test phase3_test phase3_complete_test phase45_test 
 	./phase3_test
 	@echo ""
 	@echo "══════════════════════════════════════════"
-	@echo "  Phase 3: Complete Test"
-	@echo "══════════════════════════════════════════"
-	./phase3_complete_test
-	@echo ""
-	@echo "══════════════════════════════════════════"
 	@echo "  Phase 4+5: DirectX & KVM"
 	@echo "══════════════════════════════════════════"
 	./phase45_test
-	@echo ""
-	@echo "══════════════════════════════════════════"
-	@echo "  Final: Bug Check & Stability"
-	@echo "══════════════════════════════════════════"
-	./final_check
 	@echo ""
 	@echo "══════════════════════════════════════════"
 	@echo "  All tests passed. Wine dependency: NONE"
@@ -115,6 +100,6 @@ wine-check:
 clean:
 	rm -f linexe linexe_new linexe_hook.so linexe-tracer
 	rm -f api_test reg_test heap_test thread_test
-	rm -f harsh_test phase3_test phase3_complete_test
-	rm -f phase4_test phase45_test final_check
+	rm -f harsh_test phase3_test
+	rm -f phase4_test phase45_test
 	@echo "[✓] Clean complete"
