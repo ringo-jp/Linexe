@@ -1,0 +1,12 @@
+# Build outputs
+linexe
+linexe-tracer
+linexe_hook.so
+api_test
+reg_test
+heap_test
+thread_test
+harsh_test
+phase3_test
+phase4_test
+phase45_test
