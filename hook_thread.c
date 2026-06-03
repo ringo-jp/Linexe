@@ -245,3 +245,46 @@ DWORD GetLastError(void) {
 void SetLastError(DWORD e) {
     tls_last_error = e;
 }
+
+#ifdef LINEXE_TEST_THREAD
+#include <stdio.h>
+
+static DWORD test_worker(LPVOID arg) {
+    int n = (int)(uintptr_t)arg;
+    printf("  thread worker: arg=%d\n", n);
+    Sleep(50);
+    return (DWORD)(n * 2);
+}
+
+int main(void) {
+    printf("[thread_test] CreateThread + WaitForSingleObject\n");
+
+    HANDLE h = CreateThread(NULL, 0, test_worker, (LPVOID)(uintptr_t)21, 0, NULL);
+    if (h == NULL) {
+        printf("  FAIL: CreateThread returned NULL\n");
+        return 1;
+    }
+    printf("  CreateThread -> handle %p\n", h);
+
+    DWORD r = WaitForSingleObject(h, 2000);
+    if (r == WAIT_OBJECT_0)
+        printf("  WaitForSingleObject -> WAIT_OBJECT_0  OK\n");
+    else
+        printf("  WaitForSingleObject -> %u  (expected 0)\n", r);
+
+    CloseHandle(h);
+
+    printf("\n[thread_test] Sleep(100ms)\n");
+    Sleep(100);
+    printf("  Sleep done\n");
+
+    printf("\n[thread_test] GetCurrentProcessId / GetCurrentThreadId\n");
+    DWORD pid = GetCurrentProcessId();
+    DWORD tid = GetCurrentThreadId();
+    printf("  pid=%u  tid=%u\n", pid, tid);
+    if (pid == 0) { printf("  FAIL: pid is 0\n"); return 1; }
+
+    printf("\n[+] Thread test done.\n");
+    return 0;
+}
+#endif

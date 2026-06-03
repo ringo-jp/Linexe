@@ -102,8 +102,8 @@ static HKEY alloc_fake_hkey(const char* path) {
     for (int i = 0; i < MAX_FAKE_HKEYS; i++) {
         if (!hkey_table[i].in_use) {
             hkey_table[i].in_use = 1;
-            strncpy(hkey_table[i].key_path, path,
-                    sizeof(hkey_table[i].key_path) - 1);
+            snprintf(hkey_table[i].key_path,
+                     sizeof(hkey_table[i].key_path), "%s", path);
             hkey_table[i].handle_val = hkey_counter++;
             return (HKEY)(uintptr_t)hkey_table[i].handle_val;
         }
